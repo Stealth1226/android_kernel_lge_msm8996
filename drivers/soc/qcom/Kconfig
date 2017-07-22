@@ -779,8 +779,6 @@ config TRACER_PKT
 	  processor communication protocols. The profiling information
 	  can be logged into the tracer packet itself.
 
-source "drivers/soc/qcom/lge/Kconfig"
-
 config MSM_SECURE_BUFFER
 	bool "Helper functions for securing buffers through TZ"
 	help
@@ -951,5 +949,7 @@ config WCD_DSP_GLINK
 	   provides read and write interface via char device.
 
 source "drivers/soc/qcom/memshare/Kconfig"
+
+source "drivers/soc/qcom/lge/Kconfig"
 
 endif # ARCH_MSM
