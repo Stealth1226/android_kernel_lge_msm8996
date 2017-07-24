@@ -612,6 +612,14 @@ struct votable *create_votable(const char *name,
 	votable->data = data;
 	mutex_init(&votable->vote_lock);
 
+#ifdef CONFIG_LGE_PM
+	/*
+	 * These values will be used before the first vote is made and will then
+	 * be discarded
+	 */
+	votable->effective_result = effective_result;
+	votable->effective_client_id = 0;
+#else
 	/*
 	 * Because effective_result and client states are invalid
 	 * before the first vote, initialize them to -EINVAL
@@ -620,6 +628,7 @@ struct votable *create_votable(const char *name,
 	if (votable->type == VOTE_SET_ANY)
 		votable->effective_result = 0;
 	votable->effective_client_id = -EINVAL;
+#endif
 
 	spin_lock_irqsave(&votable_list_slock, flags);
 	list_add(&votable->list, &votable_list);
