@@ -19,7 +19,7 @@
 #include <linux/timer.h>
 #include "f_gsi.h"
 #include "rndis.h"
-#include "debug.h"
+#include "../debug.h"
 
 static unsigned int gsi_in_aggr_size;
 module_param(gsi_in_aggr_size, uint, S_IRUGO | S_IWUSR);
@@ -436,7 +436,11 @@ static ssize_t usb_gsi_rw_write(struct file *file,
 		goto err;
 	}
 
+<<<<<<< HEAD
 	if (gsi->debugfs_rw_timer_enable == !!input) {
+=======
+	if (gsi->debugfs_rw_enable == !!input) {
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 		if (!!input)
 			log_event_dbg("%s: RW already enabled\n", __func__);
 		else
@@ -444,6 +448,7 @@ static ssize_t usb_gsi_rw_write(struct file *file,
 		goto err;
 	}
 
+<<<<<<< HEAD
 	gsi->debugfs_rw_timer_enable = !!input;
 
 	if (gsi->debugfs_rw_timer_enable) {
@@ -452,6 +457,23 @@ static ssize_t usb_gsi_rw_write(struct file *file,
 		log_event_dbg("%s: timer initialized\n", __func__);
 	} else {
 		del_timer_sync(&gsi->gsi_rw_timer);
+=======
+	gsi->debugfs_rw_enable = !!input;
+	if (gsi->debugfs_rw_enable) {
+		init_timer(&gsi->debugfs_rw_timer);
+		gsi->debugfs_rw_timer.data = (unsigned long) gsi;
+		gsi->debugfs_rw_timer.function = debugfs_rw_timer_func;
+
+		/* Use default remote wakeup timer interval if it is not set */
+		if (!gsi->debugfs_rw_interval)
+			gsi->debugfs_rw_interval = DEFAULT_RW_TIMER_INTERVAL;
+		gsi->debugfs_rw_timer.expires = jiffies +
+				msecs_to_jiffies(gsi->debugfs_rw_interval);
+		add_timer(&gsi->debugfs_rw_timer);
+		log_event_dbg("%s: timer initialized\n", __func__);
+	} else {
+		del_timer_sync(&gsi->debugfs_rw_timer);
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 		log_event_dbg("%s: timer deleted\n", __func__);
 	}
 
@@ -470,7 +492,11 @@ static int usb_gsi_rw_show(struct seq_file *s, void *unused)
 		return 0;
 	}
 
+<<<<<<< HEAD
 	seq_printf(s, "%d\n", gsi->debugfs_rw_timer_enable);
+=======
+	seq_printf(s, "%d\n", gsi->debugfs_rw_enable);
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 
 	return 0;
 }
@@ -518,7 +544,11 @@ static ssize_t usb_gsi_rw_timer_write(struct file *file,
 		goto err;
 	}
 
+<<<<<<< HEAD
 	gsi->gsi_rw_timer_interval = timer_val;
+=======
+	gsi->debugfs_rw_interval = timer_val;
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 err:
 	return count;
 }
@@ -526,6 +556,10 @@ err:
 static int usb_gsi_rw_timer_show(struct seq_file *s, void *unused)
 {
 	struct f_gsi *gsi;
+<<<<<<< HEAD
+=======
+	unsigned timer_interval;
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 
 	gsi = get_connected_gsi();
 	if (!gsi) {
@@ -533,7 +567,15 @@ static int usb_gsi_rw_timer_show(struct seq_file *s, void *unused)
 		return 0;
 	}
 
+<<<<<<< HEAD
 	seq_printf(s, "%ums\n", gsi->gsi_rw_timer_interval);
+=======
+	timer_interval = DEFAULT_RW_TIMER_INTERVAL;
+	if (gsi->debugfs_rw_interval)
+		timer_interval = gsi->debugfs_rw_interval;
+
+	seq_printf(s, "%ums\n", timer_interval);
+>>>>>>> ba878c1502d4 (power: Add LG power core)
 
 	return 0;
 }

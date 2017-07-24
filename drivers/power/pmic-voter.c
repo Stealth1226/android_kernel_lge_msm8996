@@ -11,6 +11,9 @@
  */
 
 #include <linux/debugfs.h>
+#ifdef CONFIG_LGE_PM
+#define DEBUG
+#endif
 #include <linux/spinlock.h>
 #include <linux/errno.h>
 #include <linux/bitops.h>
@@ -27,6 +30,17 @@ static DEFINE_SPINLOCK(votable_list_slock);
 static LIST_HEAD(votable_list);
 
 static struct dentry *debug_root;
+#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_MACH_MSM8996_H1
+#define NUM_MAX_CLIENTS	8
+#elif defined(CONFIG_MACH_MSM8996_LUCYE)
+#define NUM_MAX_CLIENTS	12
+#else
+#define NUM_MAX_CLIENTS	10
+#endif
+#else
+#define NUM_MAX_CLIENTS	8
+#endif
 
 struct client_vote {
 	bool	enabled;
@@ -144,6 +158,12 @@ static void vote_max(struct votable *votable, int client_id,
 	}
 	if (*eff_id == -EINVAL)
 		*eff_res = -EINVAL;
+#ifdef CONFIG_LGE_PM
+	pr_debug("%s: vote_min min_vote=%d, client_index=%d\n",
+		votable->name, min_vote, client_index);
+#endif
+
+	return client_index;
 }
 
 static int get_client_id(struct votable *votable, const char *client_str)
@@ -362,6 +382,14 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val)
 	client_id = get_client_id(votable, client_str);
 	if (client_id < 0) {
 		rc = client_id;
+#ifdef CONFIG_LGE_PM
+	pr_err("%s: name[%s], client_id[%d], state[%d], val[%d]\n",
+		__func__, votable->name, client_id, state, val);
+#endif
+
+	if (votable->votes[client_id].state == state &&
+				votable->votes[client_id].value == val) {
+		pr_debug("%s: votes unchanged; skipping\n", votable->name);
 		goto out;
 	}
 
@@ -510,12 +538,29 @@ out:
 DEFINE_SIMPLE_ATTRIBUTE(votable_force_ops, force_active_get, force_active_set,
 		"%lld\n");
 
-static int show_votable_clients(struct seq_file *m, void *data)
+struct votable *create_votable(struct device *dev, const char *name,
+					int votable_type,
+					int num_clients,
+#ifdef CONFIG_LGE_PM
+					int effective_result,
+#endif
+					int default_result,
+					int (*callback)(struct device *dev,
+							int effective_result,
+							int effective_client,
+							int last_result,
+							int last_client)
+					)
 {
 	struct votable *votable = m->private;
 	int i;
 	char *type_str = "Unkonwn";
 	const char *effective_client_str;
+	struct votable *votable = devm_kzalloc(dev, sizeof(struct votable),
+							GFP_KERNEL);
+
+	if (!votable)
+		return ERR_PTR(-ENOMEM);
 
 	lock_votable(votable);
 
@@ -607,11 +652,22 @@ struct votable *create_votable(const char *name,
 	}
 
 	votable->num_clients = NUM_MAX_CLIENTS;
+	votable->dev = dev;
+	votable->name = name;
+	votable->num_clients = num_clients;
 	votable->callback = callback;
 	votable->type = votable_type;
 	votable->data = data;
 	mutex_init(&votable->vote_lock);
 
+#ifdef CONFIG_LGE_PM
+	/*
+	 * These values will be used before the first vote is made and will then
+	 * be discarded
+	 */
+	votable->effective_result = effective_result;
+	votable->effective_client_id = 0;
+#else
 	/*
 	 * Because effective_result and client states are invalid
 	 * before the first vote, initialize them to -EINVAL
@@ -620,6 +676,7 @@ struct votable *create_votable(const char *name,
 	if (votable->type == VOTE_SET_ANY)
 		votable->effective_result = 0;
 	votable->effective_client_id = -EINVAL;
+#endif
 
 	spin_lock_irqsave(&votable_list_slock, flags);
 	list_add(&votable->list, &votable_list);
