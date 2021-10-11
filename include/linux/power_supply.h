@@ -12,7 +12,7 @@
 
 #ifndef __LINUX_POWER_SUPPLY_H__
 #define __LINUX_POWER_SUPPLY_H__
-
+#endif
 #include <linux/workqueue.h>
 #include <linux/leds.h>
 #include <linux/spinlock.h>
