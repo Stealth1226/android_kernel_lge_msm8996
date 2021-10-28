@@ -36,7 +36,7 @@
 # US996		= US Cellular & Unlocked (US)
 #		LGUS996  (LG V20)
 #
-# US996Dirty	= US Cellular & Unlocked (US)
+# US996Santa	= US Cellular & Unlocked (US)
 #		LGUS996  (LG V20) (Unlocked with Engineering Bootloader)
 #
 # VS995		= Verizon (US)
@@ -89,15 +89,28 @@ KBHOST=github
 # ccache: yes or no
 USE_CCACHE=no
 
+# link time optimization: yes or no
+# this kernel only supports gcc LTO
+USE_LTO=no
+
+# dead code data elimination: yes or no
+# this will inject CONFIG_THIN_ARCHIVES=y
+# into the .config - which will also then
+# select CONFIG_DEAD_CODE_DATA_ELIMINATION=y
+# this results in a smaller kernel.
+# if USE_LTO is selected this option is redundant
+USE_DCDE=no
+
 # select cpu threads
-THREADS=$(grep -c "processor" /proc/cpuinfo)
+THREADS=$(nproc --all)
 
 # directory containing cross-compiler
 # a newer toolchain (gcc8+) is recommended due to changes made
-# to the kernel.
-GCC_COMP=$HOME/mk2000/toolchain/stendro/aarch64-elf/bin/aarch64-elf-
+# to the kernel. If not then you probably must disable USE_DCDE
+# and USE_LTO at least
+GCC_COMP=$(pwd)/gcc-arm64/bin/aarch64-elf-
 # directory containing 32bit cross-compiler for CONFIG_COMPAT_VDSO
-GCC_COMP_32=$HOME/mk2000/toolchain/stendro/arm-eabi/bin/arm-eabi-
+GCC_COMP_32=$(pwd)/gcc-arm/bin/arm-eabi-
 
 # -------------------------------- END -----------------------------------
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -132,7 +145,7 @@ ABORT() {
 export ARCH=arm64
 export KBUILD_BUILD_USER=$KBUSER
 export KBUILD_BUILD_HOST=$KBHOST
-export LOCALVERSION="-${VER}"
+export LOCALVERSION="mk2k-${VER}"
 if [ "$USE_CCACHE" = "yes" ]; then
   export CROSS_COMPILE="ccache $GCC_COMP"
   export CROSS_COMPILE_ARM32="ccache $GCC_COMP_32"
@@ -166,7 +179,7 @@ elif [ "$DEVICE" = "H990" ]; then
   DEVICE_DEFCONFIG=lineageos_h990_defconfig
 elif [ "$DEVICE" = "US996" ]; then
   DEVICE_DEFCONFIG=lineageos_us996_defconfig
-elif [ "$DEVICE" = "US996Dirty" ]; then
+elif [ "$DEVICE" = "US996Santa" ]; then
   DEVICE_DEFCONFIG=lineageos_us996-dirty_defconfig
 elif [ "$DEVICE" = "VS995" ]; then
   DEVICE_DEFCONFIG=lineageos_vs995_defconfig
@@ -183,8 +196,8 @@ fi
 [ -x "${GCC_COMP}gcc" ] \
 	|| ABORT "Cross-compiler not found at: ${GCC_COMP}gcc"
 
-[ -x "${GCC_COMP_32}gcc" ] \
-	|| echo -e $COLOR_R"32-bit compiler not found, required for COMPAT_VDSO."
+[ -x "${GCC_COMP_32}gcc" ] && MK_VDSO=yes \
+	|| echo -e $COLOR_R"32-bit compiler not found, COMPAT_VDSO disabled."
 
 if [ "$USE_CCACHE" = "yes" ]; then
 	command -v ccache >/dev/null 2>&1 \
@@ -202,6 +215,14 @@ SETUP_BUILD() {
 	mkdir -p $BDIR
 	make -C "$RDIR" O=$BDIR "$DEVICE_DEFCONFIG" \
 		|| ABORT "Failed to set up build."
+	if [ "$USE_LTO" = "yes" ]; then
+	  echo "CONFIG_LTO=y" >> $BDIR/.config
+	elif [ "$USE_DCDE" = "yes" ]; then
+	  echo "CONFIG_THIN_ARCHIVES=y" >> $BDIR/.config
+	fi
+	if [ "$MK_VDSO" = "yes" ]; then
+	  echo "CONFIG_COMPAT_VDSO=y" >> $BDIR/.config
+	fi
 }
 
 BUILD_KERNEL() {
@@ -249,11 +270,16 @@ echo -e $COLOR_P"Using $GCC_VER..."
 if [ "$USE_CCACHE" = "yes" ]; then
   echo -e $COLOR_P"Using CCACHE..."
 fi
+if [ "$USE_LTO" = "yes" ]; then
+  echo -e $COLOR_P"Using Link Time Optimization..."
+fi
 
-CLEAN_BUILD &&
+
+# CLEAN_BUILD &&
 SETUP_BUILD &&
 BUILD_KERNEL &&
 INSTALL_MODULES &&
 PREPARE_NEXT &&
 echo -e $COLOR_G"Finished building ${DEVICE} ${VER} -- Kernel compilation took"$COLOR_R $BTIME
 echo -e $COLOR_P"Run ./copy_finished.sh to create AnyKernel zip."
+./copy_finished.sh
